@@ -1,14 +1,10 @@
-{ stdenv, fetchurl }:
+{ lib, stdenv, fetchurl, enableThreading ? true }:
 
 let
 
-  libc = if stdenv.gcc.libc or null != null then stdenv.gcc.libc else "/usr";
+  libc = if stdenv.cc.libc or null != null then stdenv.cc.libc else "/usr";
 
 in
-
-with {
-  inherit (stdenv.lib) optional optionalString;
-};
 
 stdenv.mkDerivation rec {
   name = "perl-5.16.3";
@@ -25,8 +21,19 @@ stdenv.mkDerivation rec {
       ./fixed-man-page-date.patch
       ./no-date-in-perl-binary.patch
     ]
-    ++ optional stdenv.isSunOS  ./ld-shared.patch
-    ++ stdenv.lib.optional stdenv.isDarwin [ ./cpp-precomp.patch ./no-libutil.patch ] ;
+    ++ lib.optional stdenv.isSunOS  ./ld-shared.patch
+    ++ lib.optional stdenv.isDarwin [ ./cpp-precomp.patch ./no-libutil.patch ] ;
+
+  # There's an annoying bug on sandboxed Darwin in Perl's Cwd.pm where it looks for pwd
+  # in /bin/pwd and /usr/bin/pwd and then falls back on just "pwd" if it can't get them
+  # while at the same time erasing the PATH environment variable so it unconditionally
+  # fails. The code in question is guarded by a check for Mac OS, but the patch below
+  # doesn't have any runtime effect on other platforms.
+  postPatch = ''
+    pwd="$(type -P pwd)"
+    substituteInPlace dist/Cwd/Cwd.pm \
+      --replace "pwd_cmd = 'pwd'" "pwd_cmd = '$pwd'"
+  '';
 
   # Build a thread-safe Perl with a dynamic libperls.o.  We need the
   # "installstyle" option to ensure that modules are put under
@@ -35,14 +42,13 @@ stdenv.mkDerivation rec {
   # Miniperl needs -lm. perl needs -lrt.
   configureFlags =
     [ "-de"
-      "-Dcc=gcc"
       "-Uinstallusrbinperl"
       "-Dinstallstyle=lib/perl5"
       "-Duseshrplib"
       "-Dlocincpth=${libc}/include"
       "-Dloclibpth=${libc}/lib"
     ]
-    ++ optional (stdenv ? glibc) "-Dusethreads";
+    ++ lib.optional enableThreading "-Dusethreads";
 
   configureScript = "${stdenv.shell} ./Configure";
 
@@ -54,50 +60,24 @@ stdenv.mkDerivation rec {
     ''
       configureFlags="$configureFlags -Dprefix=$out -Dman1dir=$out/share/man/man1 -Dman3dir=$out/share/man/man3"
 
-      ${optionalString stdenv.isArm ''
+      ${lib.optionalString stdenv.isArm ''
         configureFlagsArray=(-Dldflags="-lm -lrt")
       ''}
 
-      ${optionalString stdenv.isCygwin ''
+      ${lib.optionalString stdenv.isCygwin ''
         cp cygwin/cygwin.c{,.bak}
         echo "#define PERLIO_NOT_STDIO 0" > tmp
         cat tmp cygwin/cygwin.c.bak > cygwin/cygwin.c
       ''}
     '';
 
-  preBuild = optionalString (!(stdenv ? gcc && stdenv.gcc.nativeTools))
+  preBuild = lib.optionalString (!(stdenv ? cc && stdenv.cc.nativeTools))
     ''
       # Make Cwd work on NixOS (where we don't have a /bin/pwd).
       substituteInPlace dist/Cwd/Cwd.pm --replace "'/bin/pwd'" "'$(type -tP pwd)'"
     '';
 
   setupHook = ./setup-hook.sh;
-
-  doCheck = !stdenv.isDarwin;
-
-  # some network-related tests don't work, mostly probably due to our sandboxing
-  # man-heading.t is skipped due to output determinism (no dates)
-  testsToSkip = ''
-    lib/Net/hostent.t \
-    dist/IO/t/{io_multihomed.t,io_sock.t} \
-    dist/Net-Ping/t/*.t \
-    cpan/autodie/t/truncate.t \
-    t/porting/{maintainers.t,regen.t} \
-    cpan/Socket/t/get{name,addr}info.t \
-    cpan/podlators/t/man-heading.t \
-  '' + optionalString stdenv.isFreeBSD ''
-    cpan/CPANPLUS/t/04_CPANPLUS-Module.t \
-    cpan/CPANPLUS/t/20_CPANPLUS-Dist-MM.t \
-  '' + " ";
-
-  postPatch = optionalString (!stdenv.isDarwin) /* this failed on Darwin, no idea why */ ''
-    for test in ${testsToSkip}; do
-      echo "Removing test" $test
-      rm "$test"
-      pat=`echo "$test" | sed 's,/,\\\\/,g'` # just escape slashes
-      sed "/^$pat/d" -i MANIFEST
-    done
-  '';
 
   passthru.libPrefix = "lib/perl5/site_perl";
 }
