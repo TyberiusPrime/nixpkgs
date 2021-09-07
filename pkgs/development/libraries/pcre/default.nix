@@ -8,7 +8,7 @@ stdenv.mkDerivation rec {
   name = "pcre-8.35";
 
   src = fetchurl {
-    url = "https://ftp.pcre.org/pub/pcre/${name}.tar.bz2";
+    url = "http://ftp.pcre.org/pub/pcre/${name}.tar.bz2";
 
     sha256 = "0nw66r92dr24vy9k4lw17bkv8x5nlzn6wx9hq4y2dvzgig3w2qd9";
   };
