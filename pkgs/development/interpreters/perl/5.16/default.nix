@@ -1,10 +1,26 @@
-{ lib, stdenv, fetchurl, enableThreading ? true }:
+{ stdenv, fetchurl, enableThreading ? true }:
+
+# We can only compile perl with threading on platforms where we have a
+# real glibc in the stdenv.
+#
+# Instead of silently building an unthreaded perl if this is not the
+# case, we force callers to disableThreading explicitly, therefore
+# documenting the platforms where the perl is not threaded.
+#
+# In the case of stdenv linux boot stage1 it's not possible to use
+# threading because of the simpleness of the bootstrap glibc, so we
+# use enableThreading = false there.
+assert enableThreading -> (stdenv ? glibc);
 
 let
 
-  libc = if stdenv.cc.libc or null != null then stdenv.cc.libc else "/usr";
+  libc = if stdenv.gcc.libc or null != null then stdenv.gcc.libc else "/usr";
 
 in
+
+with {
+  inherit (stdenv.lib) optional optionalString;
+};
 
 stdenv.mkDerivation rec {
   name = "perl-5.16.3";
@@ -21,8 +37,8 @@ stdenv.mkDerivation rec {
       ./fixed-man-page-date.patch
       ./no-date-in-perl-binary.patch
     ]
-    ++ lib.optional stdenv.isSunOS  ./ld-shared.patch
-    ++ lib.optional stdenv.isDarwin [ ./cpp-precomp.patch ./no-libutil.patch ] ;
+    ++ optional stdenv.isSunOS  ./ld-shared.patch
+    ++ stdenv.lib.optional stdenv.isDarwin [ ./cpp-precomp.patch ./no-libutil.patch ] ;
 
   # Build a thread-safe Perl with a dynamic libperls.o.  We need the
   # "installstyle" option to ensure that modules are put under
@@ -31,13 +47,14 @@ stdenv.mkDerivation rec {
   # Miniperl needs -lm. perl needs -lrt.
   configureFlags =
     [ "-de"
+      "-Dcc=gcc"
       "-Uinstallusrbinperl"
       "-Dinstallstyle=lib/perl5"
       "-Duseshrplib"
       "-Dlocincpth=${libc}/include"
       "-Dloclibpth=${libc}/lib"
     ]
-    ++ lib.optional enableThreading "-Dusethreads";
+    ++ optional enableThreading "-Dusethreads";
 
   configureScript = "${stdenv.shell} ./Configure";
 
@@ -49,18 +66,18 @@ stdenv.mkDerivation rec {
     ''
       configureFlags="$configureFlags -Dprefix=$out -Dman1dir=$out/share/man/man1 -Dman3dir=$out/share/man/man3"
 
-      ${lib.optionalString stdenv.isArm ''
+      ${optionalString stdenv.isArm ''
         configureFlagsArray=(-Dldflags="-lm -lrt")
       ''}
 
-      ${lib.optionalString stdenv.isCygwin ''
+      ${optionalString stdenv.isCygwin ''
         cp cygwin/cygwin.c{,.bak}
         echo "#define PERLIO_NOT_STDIO 0" > tmp
         cat tmp cygwin/cygwin.c.bak > cygwin/cygwin.c
       ''}
     '';
 
-  preBuild = lib.optionalString (!(stdenv ? cc && stdenv.cc.nativeTools))
+  preBuild = optionalString (!(stdenv ? gcc && stdenv.gcc.nativeTools))
     ''
       # Make Cwd work on NixOS (where we don't have a /bin/pwd).
       substituteInPlace dist/Cwd/Cwd.pm --replace "'/bin/pwd'" "'$(type -tP pwd)'"
