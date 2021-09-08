@@ -12376,7 +12376,7 @@ tl: { # no indentation
 };
 "inconsolata" = {
   stripPrefix = 0;
-  md5.run = "bc05ffdf9f18ab61d8d5972023c0ff02";
+  md5.run = "md5:5iqcgwj7c2jpggp4shi5jrzsj0";
   md5.doc = "c85d398a2897a0d9d6072795a221076b";
   hasRunfiles = true;
   version = "1.05";
