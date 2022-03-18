@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchFromGitHub, zlib }:
+{ lib, stdenv, fetchFromGitHub, zlib, python3 }:
 
 stdenv.mkDerivation rec {
   pname = "bowtie";
@@ -11,7 +11,7 @@ stdenv.mkDerivation rec {
     sha256 = "sha256-mWItmrTMPst/NnzSpxxTHcBztDqHPCza9yOsZPwp7G4=";
   };
 
-  buildInputs = [ zlib ];
+  buildInputs = [ zlib python3];
 
   installFlags = [ "prefix=$(out)" ];
 
