@@ -322,10 +322,10 @@ docstring() {
 # The C-code for this binary wrapper has been generated using the following command:
 
 
-makeCWrapper $(formatArgs "$@")
+makeDocumentedCWrapper $(formatArgs "$@")
 
 
-# (Use \`nix-shell -p makeBinaryWrapper\` to get access to makeCWrapper in your shell)
+# (Use \`nix-shell -p makeBinaryWrapper\` to get access to makeDocumentedCWrapper in your shell)
 # ------------------------------------------------------------------------------------
 
 
