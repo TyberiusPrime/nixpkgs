@@ -3,7 +3,7 @@
 , url
 , rev ? null
 , md5 ? null
-, sha256 ? null
+, sha256 ? lib.fakeSha256
 , fetchSubrepos ? false
 , preferLocalBuild ? true }:
 
