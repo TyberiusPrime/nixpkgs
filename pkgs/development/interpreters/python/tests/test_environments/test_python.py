@@ -50,6 +50,20 @@ class TestCasePython(unittest.TestCase):
     def test_python_version(self):
         self.assertTrue(platform.python_version().startswith(PYTHON_VERSION))
 
+    @unittest.skipIf(IS_PYPY, "Pypi has no c-api")
+    def test_capi_agrees_with_sys_executables(self):
+        def Py_GetProgramFullPath():
+            import ctypes
+            import math
+            math = Path(sys.modules['math'].__file__)
+            libpython = math.parent.parent.parent / "libpython3.so"
+            lib = ctypes.cdll.LoadLibrary(libpython)
+            lib.Py_GetProgramFullPath.restype = ctypes.c_wchar_p
+            return lib.Py_GetProgramFullPath()
+
+        gpfp = Py_GetProgramFullPath()
+        assert sys.executable == gpfp
+
 
 if __name__ == "__main__":
     unittest.main()
